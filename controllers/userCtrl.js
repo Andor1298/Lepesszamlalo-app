@@ -136,6 +136,7 @@ async function getProfile(){
         const user = await res.json()
         emailField.value = user.email
         namefield.value = user.name
+        oldPassField.value=user.password
     } catch (err) {
         ShowAlert("Hiba történt a profil lekérésekor!", "alert-danger")
         console.log("Hiba!", err)

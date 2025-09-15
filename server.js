@@ -11,9 +11,13 @@ app.use(express.json())
 app.use(express.urlencoded({extended: true}));
 
 let users = []
+let steps=[]
 const USERS_FILE = path.join(__dirname, 'user.json')
+const STEPS_FILE = path.join(__dirname, 'steps.json')
+
 
 loadUsers()
+loadSteps()
 // ENDPOINTS
 
 app.get('/', (req, res) => {
@@ -51,17 +55,6 @@ app.post('/users', (req,res)=>{
 });
 
 
-// DELETE user
-app.delete('/users/:id', (req,res)=>{
-    let id = Number(req.params.id)
-    let idx = users.findIndex(user => Number(user.id) === id)
-    if(idx >-1){
-        users.splice(idx,1)
-        saveUsers()
-        return res.send({msg:"A felhasználó törölve."})
-    }
-    return res.status(400).send({msg:"Nincs ilyen azonosítójú felhasználó!"})
-})
 
 //POST user login
 
@@ -76,6 +69,18 @@ app.post('/users/login', (req, res) => {
 
     })
     res.send(loggeduser)
+})
+
+// DELETE user
+app.delete('/users/:id', (req,res)=>{
+    let id = Number(req.params.id)
+    let idx = users.findIndex(user => Number(user.id) === id)
+    if(idx >-1){
+        users.splice(idx,1)
+        saveUsers()
+        return res.send({msg:"A felhasználó törölve."})
+    }
+    return res.status(400).send({msg:"Nincs ilyen azonosítójú felhasználó!"})
 })
 
 
@@ -119,24 +124,125 @@ app.patch('/users/changepass/:id', (req, res) => {
     return res.status(400).send({ msg: "Nincs ilyen azonosítójú felhasználó!" })
 })
 
+
+
+// GET all steps by userId
+app.get('/steps/user/:uid', (req, res) => {
+    let uid = Number(req.params.uid);
+    let matchSteps = [];
+    steps.forEach(step => {
+        if (step.uid === uid) {
+            matchSteps.push(step);
+        }
+    });
+    res.send(matchSteps);
+});
+ 
+ 
+// GET one step by id
+ 
+app.get('/steps/:id', (req, res) => {
+    let id = req.params.id;
+    let idx = steps.findIndex(step => step.id == id);
+    if (idx > -1) {
+        return res.send(steps[idx]);
+    }
+    return res.status(400).send({msg: "Nincs ilyen azonosítójú lépésszám!"});
+});
+ 
+// POST new step by uid
+ 
+app.post('/steps/upload/:uid', (req, res) => {
+    let data = req.body;
+    let uid = Number(req.params.uid);
+    steps.push(data);
+    data.id = getNextStepID();
+    data.uid = uid;
+    saveSteps();
+    res.send({msg: 'A lépés felvéve!'});
+})
+ 
+// PATCH step by id
+app.patch('/steps/:id', (req, res) => {
+    let data = req.body;
+    let id = Number(req.params.id);
+ 
+    let newDate = data.newDate;
+    let newCount = Number(data.newCount);
+ 
+    steps.forEach(step => {
+        if (step.id === id) {
+            step.date = newDate;
+            step.count = newCount;
+        }
+    });
+    saveSteps();
+    res.send({msg: 'Sikeres módosítás'})
+});
+ 
+ 
+// DELETE step by id
+app.delete('/steps/:id', (req, res) => {
+    let id = Number(req.params.id);
+    let idx = steps.findIndex(step => step.id == id);
+ 
+    if (idx > -1) {
+        steps.splice(idx, 1);
+        saveSteps();
+        return res.status(200).send({msg: 'Sikeres törlés'})
+    }
+    return res.status(400).send({msg: "Nincs ilyen azonosítójú lépésszám!"});
+})
+ 
+ 
+// DELETE all steps by userId
+app.delete('/steps/users/:uid', (req, res) => {
+    let uid = Number(req.params.uid);
+ 
+    for (let i = 0; i < steps.length; i++) {
+        if (steps[i].uid == uid) {
+            steps.splice(i, 1);
+        }
+    }
+});
+
 app.listen(3000)
 
-function getNextId(){
-    let nextID = 1;
 
-    if (users.length == 0){
-        return nextID
-    }
-    
-    let maxIndex = 0
-    for (let i = 0; i < users.length; i++) {
-        if(users[i].id > users[maxIndex].id){
-            maxIndex = i
-        }
-        
-    }
-    return users[maxIndex].id + 1
+function getNextID() {
+    const maxId = users.reduce((max, u) => {
+        const id = Number(u?.id);
+        return Number.isFinite(id) && id > max ? id : max;
+    }, 0);
+    return maxId + 1;
 }
+ 
+function getNextStepID() {
+    const maxId = steps.reduce((max, u) => {
+        const id = Number(u?.id);
+        return Number.isFinite(id) && id > max ? id : max;
+    }, 0);
+    return maxId + 1;
+}
+
+function loadSteps(){
+    if (fs.existsSync(STEPS_FILE)) {
+        const raw = fs.readFileSync(STEPS_FILE);
+        try {
+            steps = JSON.parse(raw);
+        } catch (err) {
+            console.log('Hiba', error)
+            steps = []
+        }
+    } else {
+        saveSteps();
+    }
+}
+ 
+function saveSteps() {
+    fs.writeFileSync(STEPS_FILE, JSON.stringify(steps));
+}
+
 
 function loadUsers(){
     if(fs.existsSync(USERS_FILE)){
@@ -147,6 +253,23 @@ function loadUsers(){
         catch(err){
             console.log("Hiba az adatok beolvasása közben!", err)
             users = [];
+
+        }
+    }
+    else{
+        saveUsers()
+    }
+   
+}
+function loadSteps(){
+    if(fs.existsSync(STEPS_FILE)){
+        const raw = fs.readFileSync(STEPS_FILE)
+        try{
+            steps = JSON.parse(raw)
+        }
+        catch(err){
+            console.log("Hiba az adatok beolvasása közben!", err)
+            steps = [];
 
         }
     }
